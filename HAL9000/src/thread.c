@@ -59,8 +59,10 @@ _ThreadSystemGetNextTid(
     void
     )
 {
+    //Thread.1
     static volatile TID __currentTid = MAX_QWORD;
 
+    //Thread.1
     return _InterlockedExchangeAdd64(&__currentTid, -TID_INCREMENT);
 }
 
