@@ -9,6 +9,7 @@
 #include "isr.h"
 #include "gdtmu.h"
 #include "pe_exports.h"
+#include "iomu.h"
 
 #define TID_INCREMENT               4
 
@@ -311,6 +312,36 @@ getDescendants(
     return descendants;
 }
 
+
+QWORD
+GetNumberOfThreadsInInterval(
+    QWORD             StartCreateTime,
+    QWORD             EndCreateTime
+)
+{
+    QWORD NumberOfThreadsInInterval = 0;
+
+    LIST_ITERATOR it;
+    INTR_STATE dummy;
+
+    LockAcquire(&m_threadSystemData.AllThreadsLock, &dummy);
+    ListIteratorInit(&m_threadSystemData.AllThreadsList, &it);
+    LockRelease(&m_threadSystemData.AllThreadsLock, dummy);
+
+    PLIST_ENTRY curEntry;
+    while ((curEntry = ListIteratorNext(&it)) != NULL)
+    {
+        PTHREAD currentThread = CONTAINING_RECORD(curEntry, THREAD, AllList);
+        if (StartCreateTime <= currentThread->CreateTime
+            && currentThread->CreateTime <= EndCreateTime)
+        {
+            NumberOfThreadsInInterval++;
+        }
+    }
+
+    return NumberOfThreadsInInterval;
+}
+
 STATUS
 ThreadCreateEx(
     IN_Z        char*               Name,
@@ -358,8 +389,6 @@ ThreadCreateEx(
     secondArg = 0;
 
     ASSERT(NULL != pCpu);
-
-    LOG("HELLO this is %d\n", Name);
 
     status = _ThreadInit(Name, Priority, &pThread, TRUE);
     if (!SUCCEEDED(status))
@@ -859,6 +888,7 @@ _ThreadInit(
         pThread->Id = _ThreadSystemGetNextTid();
         pThread->State = ThreadStateBlocked;
         pThread->NoOfDescendants = 0;
+        pThread->CreateTime = IomuGetSystemTimeUs();
 
         InitializeListHead(&pThread->ChildrenList);
 

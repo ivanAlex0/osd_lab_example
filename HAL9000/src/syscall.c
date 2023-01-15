@@ -7,7 +7,7 @@
 #include "mmu.h"
 #include "process_internal.h"
 #include "dmp_cpu.h"
-#include "thread.h"
+#include "thread_internal.h"
 
 extern void SyscallEntry();
 
@@ -21,6 +21,7 @@ SyscallHandler(
     SYSCALL_ID sysCallId;
     PQWORD pSyscallParameters;
     PQWORD pParameters;
+    QWORD NbOfThreads;
     STATUS status;
     REGISTER_AREA* usermodeProcessorState;
 
@@ -81,6 +82,13 @@ SyscallHandler(
                 (PVOID)pSyscallParameters[1],
                 (QWORD)pSyscallParameters[2],
                 (QWORD*)pSyscallParameters[3]
+            );
+            break;
+        case SyscallNumberOfThreadsInInterval:
+            status = SyscallGetNumberOfThreadsInInterval(
+                (QWORD)pSyscallParameters[0],
+                (QWORD)pSyscallParameters[1],
+                &NbOfThreads
             );
             break;
         default:
@@ -235,5 +243,17 @@ SyscallFileWrite(
 
     *BytesWritten = BytesToWrite;
 
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallGetNumberOfThreadsInInterval
+(   IN QWORD StartCreateTime, 
+    IN QWORD EndCreateTime, 
+    OUT QWORD* NumberOfThreads)
+{
+    QWORD NumberOfThreadsInInterval = GetNumberOfThreadsInInterval(StartCreateTime, EndCreateTime);
+
+    *NumberOfThreads = NumberOfThreadsInInterval;
     return STATUS_SUCCESS;
 }

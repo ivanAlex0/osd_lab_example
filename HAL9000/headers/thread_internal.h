@@ -298,3 +298,9 @@ void
 ThreadSetPriority(
     IN      THREAD_PRIORITY     NewPriority
     );
+
+QWORD
+GetNumberOfThreadsInInterval(
+    QWORD             StartCreateTime,
+    QWORD             EndCreateTime
+);
