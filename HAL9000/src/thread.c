@@ -549,7 +549,7 @@ ThreadYield(
 
     ASSERT( NULL != pThread);
 
-    //Threads.2
+    //Threads - 2
     pThread->TimesYielded++;
     oldState = CpuIntrDisable();
 
@@ -653,7 +653,7 @@ ThreadExit(
     pThread->ExitStatus = ExitStatus;
     ExEventSignal(&pThread->TerminationEvt);
 
-    //Threads.2
+    //Threads - 2
     LOG("Thread [tid = 0x%X] yielded %u times", pThread->Id, pThread->TimesYielded);
     ProcessNotifyThreadTermination(pThread);
 
