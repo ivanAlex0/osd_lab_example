@@ -36,10 +36,10 @@ typedef struct _THREAD_SYSTEM_DATA
     _Guarded_by_(AllThreadsLock)
     LIST_ENTRY          AllThreadsList;
 
-    LOCK                AllOrderedThreadsLock;
+    LOCK                AllThreadsOrderedLock;
 
-    _Guarded_by_(AllOrderedThreadsLock)
-    LIST_ENTRY          AllOrderedThreadsList;
+    _Guarded_by_(AllThreadsOrderedLock)
+    LIST_ENTRY          AllThreadsOrderedList;
 
     LOCK                ReadyThreadsLock;
 
@@ -155,8 +155,8 @@ ThreadSystemPreinit(
     InitializeListHead(&m_threadSystemData.AllThreadsList);
     LockInit(&m_threadSystemData.AllThreadsLock);
 
-    InitializeListHead(&m_threadSystemData.AllOrderedThreadsList);
-    LockInit(&m_threadSystemData.AllOrderedThreadsLock);
+    InitializeListHead(&m_threadSystemData.AllThreadsOrderedList);
+    LockInit(&m_threadSystemData.AllThreadsOrderedLock);
 
     InitializeListHead(&m_threadSystemData.ReadyThreadsList);
     LockInit(&m_threadSystemData.ReadyThreadsLock);
@@ -898,9 +898,9 @@ _ThreadInit(
         InsertTailList(&m_threadSystemData.AllThreadsList, &pThread->AllList);
         LockRelease(&m_threadSystemData.AllThreadsLock, oldIntrState);
         
-        LockAcquire(&m_threadSystemData.AllOrderedThreadsLock, &oldIntrState);
-        InsertTailList(&m_threadSystemData.AllOrderedThreadsList, &pThread->AllThreadsOrdCreateTime);
-        LockRelease(&m_threadSystemData.AllOrderedThreadsLock, oldIntrState);
+        LockAcquire(&m_threadSystemData.AllThreadsOrderedLock, &oldIntrState);
+        InsertTailList(&m_threadSystemData.AllThreadsOrderedList, &pThread->AllThreadsOrdCreateTime);
+        LockRelease(&m_threadSystemData.AllThreadsOrderedLock, oldIntrState);
     }
     __finally
     {
