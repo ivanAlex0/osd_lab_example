@@ -1401,6 +1401,13 @@ VmmTick()
             &bAccessed,
             &bDirty);
 
+        if (bAccessed) {
+            LOG("A message for accessed page");
+        }
+        if (bDirty) {
+            LOG("A message for dirty page");
+        }
+
         mapping->AccessCount += (bAccessed || bDirty);
     }
     LockRelease(&currentProcess->MappingsLock, dummy);
