@@ -379,6 +379,23 @@ ProcessTerminate(
     pCurrentThread = GetCurrentThread();
     bFoundCurThreadInProcess = FALSE;
 
+    //Virtual Memory - 4
+    LIST_ITERATOR it;
+    INTR_STATE dummy;
+
+    LockAcquire(&Process->MappingsLock, &dummy);
+    ListIteratorInit(&Process->MappingsList, &it);
+
+    PLIST_ENTRY curEntry;
+    while ((curEntry = ListIteratorNext(&it)) != NULL)
+    {
+        PFRAME_MAPPING mapping = CONTAINING_RECORD(curEntry, FRAME_MAPPING, ListEntry);
+        LOG("Frame of destroyed process with pa 0x%X and fa 0x%X\n", mapping->PhysicalAddress, mapping->VirtualAddress);
+    }
+
+    LockRelease(&Process->MappingsLock, dummy);
+
+
     // Go through the list of threads and notify each thread of termination
     // For the current thread (if it belongs to the process being terminated)
     // explicitly call ThreadExit
