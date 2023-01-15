@@ -270,6 +270,7 @@ SyscallGetNumberOfThreadsInInterval
     return STATUS_SUCCESS;
 }
 
+//Virtual Memory - 3
 STATUS
 SyscallVirtualAlloc(
     IN_OPT      PVOID                   BaseAddress,
@@ -289,6 +290,7 @@ SyscallVirtualAlloc(
         return STATUS_UNSUCCESSFUL;
     }
 
+    //Virtual Memory - 3
     *AllocatedAddress = VmmAllocRegionEx(
         BaseAddress,
         Size,
