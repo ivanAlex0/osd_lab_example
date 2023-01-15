@@ -143,6 +143,95 @@ void
     ASSERT( SUCCEEDED(status));
 }
 
+STATUS
+(__cdecl ThreadFunc)(
+    IN_OPT      PVOID       Context
+    )
+{
+    ASSERT(Context == NULL);
+    
+    LOG("Hello from some thread\n");
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+(__cdecl FirstThreadFunction)(
+    IN_OPT      PVOID       Context
+)
+{
+    ASSERT(Context == NULL);
+    LOG("I'm first thread\n");
+
+    for (int i = 0; i < 10; i++) {
+        PTHREAD thread;
+        STATUS status;
+
+        LOG("Thread: 0x%X\n", i);
+        char Path[MAX_PATH];
+        snprintf(Path, MAX_PATH, "Thread %d", i);
+        status = ThreadCreate(Path, ThreadPriorityDefault, ThreadFunc, NULL, &thread);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+(__cdecl SecondAdditionalThreadFunction)(
+    IN_OPT      PVOID       Context
+    )
+{
+    ASSERT(Context == NULL);
+
+    PTHREAD additionalThread;
+    STATUS status;
+
+    status = ThreadCreate("Thread additional child", ThreadPriorityDefault, ThreadFunc, NULL, &additionalThread);
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+(__cdecl SecondThreadFunction)(
+    IN_OPT      PVOID       Context
+)
+{
+    ASSERT(Context == NULL);
+
+    PTHREAD additionalThread;
+    STATUS status;
+
+    status = ThreadCreate("Thread additional", ThreadPriorityDefault, SecondAdditionalThreadFunction, NULL, &additionalThread);
+
+    return STATUS_SUCCESS;
+}
+
+void
+(__cdecl CmdTestDescendants)(
+    IN          QWORD       NumberOfParameters
+    )
+{
+    ASSERT(NumberOfParameters == 0);
+
+    //Create the first thread
+    PTHREAD firstThread;
+    STATUS status1;
+
+    status1 = ThreadCreate("Thread 1", ThreadPriorityDefault, FirstThreadFunction, NULL, &firstThread);
+
+    //Create the 2nd thread
+    PTHREAD secondThread;
+    STATUS status2;
+
+    status2 = ThreadCreate("Thread 2", ThreadPriorityDefault, SecondThreadFunction, NULL, &secondThread);
+
+    //Create the 3rd thread
+    PTHREAD thirdThread;
+    STATUS status3;
+
+    status3 = ThreadCreate("Thread 3", ThreadPriorityDefault, ThreadFunc, NULL, &thirdThread);
+}
+
 void
 (__cdecl CmdYield)(
     IN          QWORD       NumberOfParameters

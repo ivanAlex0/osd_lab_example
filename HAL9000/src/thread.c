@@ -359,12 +359,7 @@ ThreadCreateEx(
 
     ASSERT(NULL != pCpu);
 
-    PTHREAD parent = GetCurrentThread();
-
-    if (parent != NULL) {
-        LOG("THREAD has parent\n");
-    }
-    else LOG("THREAD doesn't have parent\n");
+    LOG("HELLO this is %d\n", Name);
 
     status = _ThreadInit(Name, Priority, &pThread, TRUE);
     if (!SUCCEEDED(status))
