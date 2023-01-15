@@ -121,6 +121,17 @@ void
 }
 
 void
+(__cdecl CmdLogThreadsAndReadyThreads)(
+    IN          QWORD       NumberOfParameters
+    )
+{
+
+    ASSERT(NumberOfParameters == 0);
+
+    LogAllThreadsAndReadyThreads();
+}
+
+void
 (__cdecl CmdListThreads)(
     IN          QWORD       NumberOfParameters
     )

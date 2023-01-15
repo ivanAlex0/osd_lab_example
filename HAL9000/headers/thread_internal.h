@@ -305,3 +305,5 @@ GetNumberOfThreadsInInterval(
     QWORD             StartCreateTime,
     QWORD             EndCreateTime
 );
+
+void LogAllThreadsAndReadyThreads();

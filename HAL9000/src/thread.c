@@ -35,6 +35,7 @@ typedef struct _THREAD_SYSTEM_DATA
 
     _Guarded_by_(AllThreadsLock)
     LIST_ENTRY          AllThreadsList;
+    QWORD               AllThreadsNb;
 
     LOCK                AllThreadsOrderedLock;
 
@@ -45,6 +46,7 @@ typedef struct _THREAD_SYSTEM_DATA
 
     _Guarded_by_(ReadyThreadsLock)
     LIST_ENTRY          ReadyThreadsList;
+    QWORD               ReadyThreadsNb;
 } THREAD_SYSTEM_DATA, *PTHREAD_SYSTEM_DATA;
 
 static THREAD_SYSTEM_DATA m_threadSystemData;
@@ -156,12 +158,14 @@ ThreadSystemPreinit(
 
     InitializeListHead(&m_threadSystemData.AllThreadsList);
     LockInit(&m_threadSystemData.AllThreadsLock);
+    m_threadSystemData.AllThreadsNb = 0;
 
     InitializeListHead(&m_threadSystemData.AllThreadsOrderedList);
     LockInit(&m_threadSystemData.AllThreadsOrderedLock);
 
     InitializeListHead(&m_threadSystemData.ReadyThreadsList);
     LockInit(&m_threadSystemData.ReadyThreadsLock);
+    m_threadSystemData.ReadyThreadsNb = 0;
 }
 
 STATUS
@@ -570,6 +574,7 @@ ThreadYield(
     if (pThread != pCpu->ThreadData.IdleThread)
     {
         InsertTailList(&m_threadSystemData.ReadyThreadsList, &pThread->ReadyList);
+        m_threadSystemData.ReadyThreadsNb++;
     }
     if (!bForcedYield)
     {
@@ -625,6 +630,7 @@ ThreadUnblock(
 
     LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
     InsertTailList(&m_threadSystemData.ReadyThreadsList, &Thread->ReadyList);
+    m_threadSystemData.ReadyThreadsNb++;
     Thread->State = ThreadStateReady;
     LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState );
     LockRelease(&Thread->BlockLock, oldState);
@@ -714,6 +720,7 @@ ThreadTerminate(
     PTHREAD currentThread;
     currentThread = GetCurrentThread();
     currentThread->NoOfDescendants -= 1;
+    m_threadSystemData.AllThreadsNb--;
 
     // it's not a problem if the thread already finished
     _InterlockedOr(&Thread->Flags, THREAD_FLAG_FORCE_TERMINATE_PENDING );
@@ -898,6 +905,7 @@ _ThreadInit(
 
         LockAcquire(&m_threadSystemData.AllThreadsLock, &oldIntrState);
         InsertTailList(&m_threadSystemData.AllThreadsList, &pThread->AllList);
+        m_threadSystemData.AllThreadsNb++;
         LockRelease(&m_threadSystemData.AllThreadsLock, oldIntrState);
         
         LockAcquire(&m_threadSystemData.AllThreadsOrderedLock, &oldIntrState);
@@ -1339,6 +1347,7 @@ _ThreadGetReadyThread(
     pNextThread = NULL;
 
     pEntry = RemoveHeadList(&m_threadSystemData.ReadyThreadsList);
+    m_threadSystemData.ReadyThreadsNb--;
     if (pEntry == &m_threadSystemData.ReadyThreadsList)
     {
         pNextThread = GetCurrentPcpu()->ThreadData.IdleThread;
@@ -1460,4 +1469,11 @@ _ThreadKernelFunction(
 
     ThreadExit(exitStatus);
     NOT_REACHED;
+}
+
+void LogAllThreadsAndReadyThreads(
+)
+{
+    LOG("All threads: %d\n", m_threadSystemData.AllThreadsNb);
+    LOG("Ready threads: %d\n", m_threadSystemData.ReadyThreadsNb);
 }
