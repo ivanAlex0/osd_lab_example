@@ -292,6 +292,25 @@ ThreadCreate(
                           ProcessRetrieveSystemProcess());
 }
 
+
+QWORD
+getDescendants(
+    PTHREAD             Thread
+)
+{
+    LIST_ITERATOR it;
+    ListIteratorInit(&Thread->ChildrenList, &it);
+
+    QWORD descendants = Thread->NoOfDescendants;
+    PLIST_ENTRY curEntry;
+    while ((curEntry = ListIteratorNext(&it)) != NULL) {
+        PTHREAD child = CONTAINING_RECORD(curEntry, THREAD, ChildrenListEntry);
+        descendants += getDescendants(child);
+    }
+
+    return descendants;
+}
+
 STATUS
 ThreadCreateEx(
     IN_Z        char*               Name,
@@ -343,9 +362,9 @@ ThreadCreateEx(
     PTHREAD parent = GetCurrentThread();
 
     if (parent != NULL) {
-        LOG("THREAD has parent");
+        LOG("THREAD has parent\n");
     }
-    else LOG("THREAD doesn't have parent");
+    else LOG("THREAD doesn't have parent\n");
 
     status = _ThreadInit(Name, Priority, &pThread, TRUE);
     if (!SUCCEEDED(status))
@@ -353,6 +372,28 @@ ThreadCreateEx(
         LOG_FUNC_ERROR("_ThreadInit", status);
         return status;
     }
+
+    PTHREAD currentThread;
+    currentThread = GetCurrentThread();
+    currentThread->NoOfDescendants += 1;
+
+    InsertHeadList(&currentThread->ChildrenList, &pThread->ChildrenListEntry);
+
+    INTR_STATE dummyState;
+    LockAcquire(&m_threadSystemData.AllThreadsLock, &dummyState);
+    LIST_ITERATOR it;
+    ListIteratorInit(&m_threadSystemData.AllThreadsList, &it);
+
+    LOG("As a result of [tid = 0x%X] creation\n");
+
+    PLIST_ENTRY pEntry;
+    while ((pEntry = ListIteratorNext(&it)) != NULL) {
+        PTHREAD curThread = CONTAINING_RECORD(pEntry, THREAD, AllList);
+        QWORD descendants = getDescendants(curThread);
+        LOG("[tid = 0x%X] has now %x descendants\n", curThread->Id, descendants);
+    }
+
+    LockRelease(&m_threadSystemData.AllThreadsLock, dummyState);
 
     ProcessInsertThreadInList(Process, pThread);
 
@@ -644,6 +685,10 @@ ThreadTerminate(
 {
     ASSERT( NULL != Thread );
 
+    PTHREAD currentThread;
+    currentThread = GetCurrentThread();
+    currentThread->NoOfDescendants -= 1;
+
     // it's not a problem if the thread already finished
     _InterlockedOr(&Thread->Flags, THREAD_FLAG_FORCE_TERMINATE_PENDING );
 }
@@ -818,7 +863,9 @@ _ThreadInit(
 
         pThread->Id = _ThreadSystemGetNextTid();
         pThread->State = ThreadStateBlocked;
+        pThread->NoOfDescendants = 0;
 
+        InitializeListHead(&pThread->ChildrenList);
 
         LockInit(&pThread->BlockLock);
 

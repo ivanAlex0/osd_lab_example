@@ -100,9 +100,12 @@ typedef struct _THREAD
     //Threads.3
     TID                     Parent;
 
-    LIST_ENTRY              Children;
+    LIST_ENTRY              ChildrenList;
+    LIST_ENTRY              ChildrenListEntry;
 
     QWORD                   CreateTime;
+
+    QWORD                   NoOfDescendants;
 } THREAD, *PTHREAD;
 
 //******************************************************************************
