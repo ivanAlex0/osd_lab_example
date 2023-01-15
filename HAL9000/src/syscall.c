@@ -8,6 +8,7 @@
 #include "process_internal.h"
 #include "dmp_cpu.h"
 #include "thread_internal.h"
+#include "vmm.h"
 
 extern void SyscallEntry();
 
@@ -89,6 +90,17 @@ SyscallHandler(
                 (QWORD)pSyscallParameters[0],
                 (QWORD)pSyscallParameters[1],
                 &NbOfThreads
+            );
+            break;
+        case SyscallIdVirtualAlloc:
+            status = SyscallVirtualAlloc(
+                (PVOID)pSyscallParameters[0],
+                (QWORD)pSyscallParameters[1],
+                (VMM_ALLOC_TYPE)pSyscallParameters[2],
+                (PAGE_RIGHTS)pSyscallParameters[3],
+                (UM_HANDLE)pSyscallParameters[4],
+                (QWORD)pSyscallParameters[5],
+                (PVOID*)pSyscallParameters[6]
             );
             break;
         default:
@@ -255,5 +267,38 @@ SyscallGetNumberOfThreadsInInterval
     QWORD NumberOfThreadsInInterval = GetNumberOfThreadsInInterval(StartCreateTime, EndCreateTime);
 
     *NumberOfThreads = NumberOfThreadsInInterval;
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallVirtualAlloc(
+    IN_OPT      PVOID                   BaseAddress,
+    IN          QWORD                   Size,
+    IN          VMM_ALLOC_TYPE          AllocType,
+    IN          PAGE_RIGHTS             PageRights,
+    IN_OPT      UM_HANDLE               FileHandle,
+    IN_OPT      QWORD                   Key,
+    OUT         PVOID* AllocatedAddress
+) {
+    UNREFERENCED_PARAMETER(FileHandle);
+    UNREFERENCED_PARAMETER(Key);
+
+    PPROCESS currentProcess = GetCurrentProcess();
+
+    if (currentProcess == NULL) {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    *AllocatedAddress = VmmAllocRegionEx(
+        BaseAddress,
+        Size,
+        AllocType,
+        PageRights,
+        FALSE,
+        NULL,
+        currentProcess->VaSpace,
+        currentProcess->PagingData,
+        NULL
+    );
     return STATUS_SUCCESS;
 }
