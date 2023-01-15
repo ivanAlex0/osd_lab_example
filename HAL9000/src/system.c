@@ -71,10 +71,12 @@ STATUS
     )
 {
     UNREFERENCED_PARAMETER(Context);
-    PHelloIpiContext ctx = (PHelloIpiContext)Context;
-        
-    LOGP("Hello: 0x%X\n", ctx->ticks);
-    return STATUS_SUCCESS;
+    
+   LOGP("Hello there!\n");
+   while (1) {
+
+   }
+   return STATUS_SUCCESS;
 }
 
 STATUS
@@ -355,18 +357,16 @@ SystemInit(
         group = group | currentCPU->LogicalApicId;
         x++;
     }
-
-    SMP_DESTINATION dest = { 0 };
-
     //PPCPU lastCpu = CONTAINING_RECORD(pCurEntry, PCPU, ListEntry);
     //dest.Cpu.ApicId = lastCpu->ApicId;
 
-    dest.Group.Affinity = group;
+    /*dest.Group.Affinity = group;
 
     HelloIpiContext context = { 0 };
-    context.ticks = RtcGetTickCount();
+    context.ticks = RtcGetTickCount();*/
 
-    status = SmpSendGenericIpiEx(_HelloIpi, &context, NULL, NULL, TRUE, SmpIpiSendToGroup, dest);
+    SMP_DESTINATION dest = { 0 };
+    status = SmpSendGenericIpiEx(_HelloIpi, NULL, NULL, NULL, TRUE, SmpIpiSendToAllExcludingSelf, dest);
 
     if (!SUCCEEDED(status))
     {
