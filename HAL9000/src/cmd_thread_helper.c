@@ -783,6 +783,16 @@ STATUS
     LOG("%9U%c", pThread->TickCountCompleted + pThread->TickCountEarly, '|');
     LOG("%9x%c", pThread->Process->Id, '|');
     LOG("\n");
+    LOG("CHILDREN:\n");
+    
+    LIST_ITERATOR it;
+    ListIteratorInit(&pThread->ChildrenList, &it);
+
+    PLIST_ENTRY curEntry;
+    while ((curEntry = ListIteratorNext(&it)) != NULL) {
+        PTHREAD child = CONTAINING_RECORD(curEntry, THREAD, ChildrenListEntry);
+        LOG("Child with [tid: 0x%X]\n", child->Id);
+    }
 
     return STATUS_SUCCESS;
 }

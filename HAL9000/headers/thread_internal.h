@@ -94,12 +94,13 @@ typedef struct _THREAD
 
     struct _PROCESS*        Process;
 
-    //Threads.2
+    //Threads - 2
     DWORD                   TimesYielded;
 
-    //Threads.3
+    //Threads - 3
     TID                     Parent;
 
+    //Threads - 3
     LIST_ENTRY              ChildrenList;
     LIST_ENTRY              ChildrenListEntry;
 
