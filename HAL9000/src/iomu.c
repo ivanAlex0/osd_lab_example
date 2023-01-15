@@ -24,6 +24,8 @@
 #include "smp.h"
 #include "ex_system.h"
 #include "lock_common.h"
+#include "process_internal.h"
+#include "mmu.h"
 
 #define PIC_MASTER_OFFSET                   0x20
 #define PIC_SLAVE_OFFSET                    0x28
@@ -94,6 +96,10 @@ typedef struct _IOMU_DATA
     _Guarded_by_(GlobalInterruptLock)
     BITMAP                      InterruptBitmap;
     BYTE                        BitmapBuffer[NO_OF_TOTAL_INTERRUPTS / BITS_FOR_STRUCTURE(BYTE)];
+    QWORD                       SwapFileSize;
+    LOCK                        SwapBitmapLock;
+    BITMAP                      SwapBitmap;
+    PVOID                       SwapBitmapData;
 } IOMU_DATA, *PIOMU_DATA;
 STATIC_ASSERT(FIELD_OFFSET(IOMU_DATA, SystemUptime) % sizeof(QWORD) == 0 );
 
@@ -537,6 +543,17 @@ IomuLateInit(
     {
         LOGL("Successfully determined swap partition!\n");
     }
+
+    INTR_STATE dummy;
+
+    LockAcquire(&m_iomuData.SwapBitmapLock, &dummy);
+    DWORD bitmapSize = BitmapPreinit(&m_iomuData.SwapBitmap, (DWORD)m_iomuData.SwapFileSize / PAGE_SIZE);
+    LockRelease(&m_iomuData.SwapBitmapLock, dummy);
+
+    m_iomuData.SwapBitmapData = ExAllocatePoolWithTag(PoolAllocatePanicIfFail, bitmapSize, HEAP_IOMU_TAG, 0);
+    LockInit(&m_iomuData.SwapBitmapLock);
+
+    BitmapInit(&m_iomuData.SwapBitmap, m_iomuData.SwapBitmapData);
 
     return STATUS_SUCCESS;
 }
@@ -1270,6 +1287,35 @@ _IomuInitializeSwapFile(
             continue;
         }
         bOpenedSwapFile = TRUE;
+
+        PARTITION_INFORMATION partitionInformation;
+        PIRP pIrp = IoBuildDeviceIoControlRequest(IOCTL_VOLUME_PARTITION_INFO,
+            pVpb->VolumeDevice,
+            NULL,
+            0,
+            &partitionInformation,
+            sizeof(PARTITION_INFORMATION));
+        if (NULL == pIrp)
+        {
+            LOG_ERROR("IoBuildDeviceIoControlRequest failed\n");
+            continue;
+        }
+
+        status = IoCallDriver(pVpb->VolumeDevice, pIrp);
+        if (!SUCCEEDED(status))
+        {
+            LOG_FUNC_ERROR("IoCallDriver", status);
+            continue;
+        }
+
+        if (!SUCCEEDED(pIrp->IoStatus.Status))
+        {
+            LOG_FUNC_ERROR("IoCallDriver", pIrp->IoStatus.Status);
+            continue;
+        }
+
+        LOG("swap size is %U bytes!\n", partitionInformation.PartitionSize * SECTOR_SIZE);
+        m_iomuData.SwapFileSize = partitionInformation.PartitionSize * SECTOR_SIZE;
     }
 
     return bOpenedSwapFile ? STATUS_SUCCESS : STATUS_FILE_NOT_FOUND;
@@ -1367,4 +1413,67 @@ _IomuProgramPciInterrupt(
     LOG_FUNC_END;
 
     return status;
+}
+
+STATUS
+IomuSwapOut(
+    IN      PVOID       VirtualAddress
+)
+{
+    ASSERT(VirtualAddress != NULL);
+
+    INTR_STATE dummy;
+    DWORD idx;
+
+    LockAcquire(&m_iomuData.SwapBitmapLock, &dummy);
+    idx = BitmapScanAndFlip(&m_iomuData.SwapBitmap, 1, FALSE);
+    LockRelease(&m_iomuData.SwapBitmapLock, dummy);
+
+    if (idx == MAX_WORD) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    PFRAME_MAPPING frameMapping = ExAllocatePoolWithTag(
+        PoolAllocateZeroMemory,
+        sizeof(FRAME_MAPPING),
+        HEAP_TEMP_TAG,
+        0
+    );
+
+    QWORD BytesWritten = 0;
+    QWORD Offset = idx * PAGE_SIZE;
+
+    IoWriteFile(
+        m_iomuData.SwapFile,
+        PAGE_SIZE,
+        &Offset,
+        (PVOID)AlignAddressLower(VirtualAddress, PAGE_SIZE),
+        &BytesWritten);
+
+    if (BytesWritten != PAGE_SIZE) {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    MmuUnmapMemoryEx(VirtualAddress, PAGE_SIZE, TRUE, GetCurrentProcess()->PagingData);
+    memzero(frameMapping, sizeof(FRAME_MAPPING));
+
+    frameMapping->VirtualAddress = VirtualAddress;
+    frameMapping->PhysicalAddress = (PHYSICAL_ADDRESS)((QWORD)idx * PAGE_SIZE);
+
+    PPROCESS pProcess = GetCurrentProcess();
+
+    LockAcquire(&pProcess->MappingsLock, &dummy);
+    InsertTailList(&pProcess->MappingsList, &frameMapping->ListEntry);
+    LockRelease(&pProcess->MappingsLock, dummy);
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+IomuSwapIn(
+    OUT     PVOID       VirtualAddress
+)
+{
+    VirtualAddress = 0;
+    return STATUS_SUCCESS;
 }

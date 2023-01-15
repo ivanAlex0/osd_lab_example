@@ -10,6 +10,7 @@
 #include "thread_internal.h"
 #include "process_internal.h"
 #include "mdl.h"
+#include "iomu.h"
 
 #define VMM_SIZE_FOR_RESERVATION_METADATA            (5*TB_SIZE)
 
@@ -804,6 +805,8 @@ VmmSolvePageFault(
 
             alignedAddress = (PVOID)AlignAddressLower(FaultingAddress, PAGE_SIZE);
 
+            IomuSwapIn(alignedAddress);
+
             // 2. Map the aligned faulting address to the newly acquired physical frame
             MmuMapMemoryInternal(pa,
                                  PAGE_SIZE,
@@ -1370,4 +1373,35 @@ BOOLEAN
     }
 
     return bContinue;
+}
+
+void
+VmmTick()
+{
+    PPROCESS currentProcess = GetCurrentProcess();
+    INTR_STATE dummy;
+    LIST_ITERATOR it;
+    
+    ListIteratorInit(&currentProcess->MappingsList, &it);
+    PLIST_ENTRY curEntry;
+
+    LockAcquire(&currentProcess->MappingsLock, &dummy);
+    while ((curEntry = ListIteratorNext(&it)) != NULL) {
+        PFRAME_MAPPING mapping = CONTAINING_RECORD(curEntry, FRAME_MAPPING, ListEntry);
+
+        BOOLEAN bAccessed;
+        BOOLEAN bDirty;
+        PHYSICAL_ADDRESS pa;
+        PML4 cr3;
+
+        cr3.Raw = (QWORD)currentProcess->PagingData->Data.BasePhysicalAddress;
+
+        pa = VmmGetPhysicalAddressEx(cr3,
+            mapping->VirtualAddress,
+            &bAccessed,
+            &bDirty);
+
+        mapping->AccessCount += (bAccessed || bDirty);
+    }
+    LockRelease(&currentProcess->MappingsLock, dummy);
 }
